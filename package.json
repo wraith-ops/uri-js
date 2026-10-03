@@ -1,7 +1,7 @@
 {
-  "name": "uri-js",
+  "name": "@wraith-ops/uri-js",
   "version": "4.4.2",
-  "description": "An RFC 3986/3987 compliant, scheme extendable URI/IRI parsing/normalizing/resolving/serializing library for JavaScript.",
+  "description": "Maintained fork of uri-js with security fixes. An RFC 3986/3987 compliant, scheme extendable URI/IRI parsing/normalizing/resolving/serializing library for JavaScript.",
   "main": "dist/es5/uri.all.js",
   "types": "dist/es5/uri.all.d.ts",
   "directories": {
@@ -26,7 +26,7 @@
   },
   "repository": {
     "type": "git",
-    "url": "http://github.com/garycourt/uri-js"
+    "url": "git+https://github.com/wraith-ops/uri-js.git"
   },
   "keywords": [
     "URI",
@@ -55,9 +55,9 @@
   "author": "Gary Court <gary.court@gmail.com>",
   "license": "BSD-2-Clause",
   "bugs": {
-    "url": "https://github.com/garycourt/uri-js/issues"
+    "url": "https://github.com/wraith-ops/uri-js/issues"
   },
-  "homepage": "https://github.com/garycourt/uri-js",
+  "homepage": "https://github.com/wraith-ops/uri-js#readme",
   "devDependencies": {
     "babel-cli": "^6.26.0",
     "babel-plugin-external-helpers": "^6.22.0",
@@ -73,5 +73,8 @@
   },
   "dependencies": {
     "punycode": "^2.1.0"
+  },
+  "publishConfig": {
+    "access": "public"
   }
 }

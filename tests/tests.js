@@ -461,7 +461,7 @@ test("Unescape Component (malformed UTF-8)", function () {
 	strictEqual(URI.normalize("http://example.com/public/%E0%40%2E%E0%40%2E/secret"), "http://example.com/public/%E0%40%2E%E0%40%2E/secret", "normalize");
 	strictEqual(URI.equal("http://example.com/public/%E0%40%2E%E0%40%2E/secret", "http://example.com/secret"), false, "equal");
 	strictEqual(URI.resolve("http://a/b/c/", "%E0%40%2E%E0%40%2E/x"), "http://a/b/c/%E0%40%2E%E0%40%2E/x", "resolve");
-	strictEqual(URI.normalize("http://a/b/%C0%AE%C0%AE/c"), "http://a/b/%C0%AE%C0%AE/c", "normalize overlong");
+	strictEqual(URI.normalize("http://a/b/%E0%80%AE%E0%80%AE/c"), "http://a/b/%E0%80%AE%E0%80%AE/c", "normalize overlong");
 	//legitimately encoded dots still normalize as before
 	strictEqual(URI.normalize("http://a/b/%2E%2E/c"), "http://a/c", "normalize %2E%2E");
 });

@@ -1,0 +1,29 @@
+name: Publish
+
+# Publishes to npm with provenance when a GitHub release is published.
+# Setup (once): on npmjs.com, configure a Trusted Publisher for @wraith-ops/uri-js
+# pointing at this repository and workflow (publish.yml). No npm token is needed.
+
+on:
+  release:
+    types: [published]
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          registry-url: https://registry.npmjs.org
+      - run: npm ci
+      - run: npm run build
+      - run: git diff --exit-code dist
+      - run: npm test
+      - run: npm run test:min
+      - run: npm publish --provenance --access public

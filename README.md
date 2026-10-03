@@ -1,4 +1,20 @@
-# URI.js
+# URI.js (maintained fork)
+
+> **This is a maintained fork of [`uri-js`](https://github.com/garycourt/uri-js)**, which has had no release since 2020.
+> Version 4.4.2 fixes a path traversal, a denial of service and several crashes in 4.4.1
+> ([advisory](SECURITY-ADVISORY-2026-10.md), [changelog](CHANGELOG.md)). The API is unchanged.
+>
+> Most projects get `uri-js` indirectly (through `ajv@6`, `eslint@8`, webpack and others). To switch every copy
+> in your dependency tree, add an override to your `package.json`:
+>
+> ```json
+> "overrides": { "uri-js": "npm:@wraith-ops/uri-js@^4.4.2" }
+> ```
+>
+> Yarn: `"resolutions": { "uri-js": "npm:@wraith-ops/uri-js@^4.4.2" }`. pnpm: `"pnpm": { "overrides": { "uri-js": "npm:@wraith-ops/uri-js@^4.4.2" } }`.
+>
+> Report bugs at [wraith-ops/uri-js](https://github.com/wraith-ops/uri-js/issues), and report security issues privately via [SECURITY.md](SECURITY.md).
+
 
 URI.js is an [RFC 3986](http://www.ietf.org/rfc/rfc3986.txt) compliant, scheme extendable URI parsing/normalizing/resolving/serializing library for all JavaScript environments (browsers, Node.js, etc).
 It is also compliant with the IRI ([RFC 3987](http://www.ietf.org/rfc/rfc3987.txt)), IDNA ([RFC 5890](http://www.ietf.org/rfc/rfc5890.txt)), IPv6 Address ([RFC 5952](http://www.ietf.org/rfc/rfc5952.txt)), IPv6 Zone Identifier ([RFC 6874](http://www.ietf.org/rfc/rfc6874.txt)) specifications.
