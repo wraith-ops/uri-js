@@ -437,6 +437,44 @@ test("Unescape Component", function () {
 	strictEqual(URI.unescapeComponent(encodeURIComponent("\u07ff")), "\u07ff");
 	strictEqual(URI.unescapeComponent(encodeURIComponent("\u0800")), "\u0800");
 	strictEqual(URI.unescapeComponent(encodeURIComponent("\u30a2")), "\u30a2");
+	strictEqual(URI.unescapeComponent(encodeURIComponent("\uffff")), "\uffff");
+});
+
+test("Unescape Component (malformed UTF-8)", function () {
+	//invalid continuation bytes must not be masked into ASCII (e.g. "." or CRLF)
+	strictEqual(URI.unescapeComponent("%E0%40%2E"), "%E0%40%2E", "3-byte lead + ASCII");
+	strictEqual(URI.unescapeComponent("%E0%40%0D%E0%40%0A"), "%E0%40%0D%E0%40%0A", "smuggled CRLF");
+	strictEqual(URI.unescapeComponent("%C3%2E"), "%C3%2E", "2-byte lead + ASCII");
+	strictEqual(URI.unescapeComponent("%C3%2E", IRI_OPTION), "%C3%2E", "2-byte lead + ASCII (IRI)");
+	//overlong encodings
+	strictEqual(URI.unescapeComponent("%C0%AE"), "%C0%AE", "overlong 2-byte '.'");
+	strictEqual(URI.unescapeComponent("%E0%80%AE"), "%E0%80%AE", "overlong 3-byte '.'");
+	//astral characters round-trip (escapeComponent encodes each UTF-16 surrogate separately)
+	strictEqual(URI.unescapeComponent(URI.escapeComponent("\ud83d\ude00")), "\ud83d\ude00", "astral round-trip");
+	strictEqual(URI.unescapeComponent(URI.escapeComponent("\ud83d\ude00"), IRI_OPTION), "\ud83d\ude00", "astral round-trip (IRI)");
+	//4-byte lead bytes are not decoded as a 3-byte sequence
+	strictEqual(URI.unescapeComponent("%F0%9F%98"), "%F0%9F%98", "4-byte lead");
+	//valid sequences around malformed ones still decode
+	strictEqual(URI.unescapeComponent("a%2Fb%E0%40%2Ec%C3%A9"), "a/b%E0%40%2Ec\u00e9", "mixed");
+
+	//malformed sequences must not become dot segments during normalization (path traversal)
+	strictEqual(URI.normalize("http://example.com/public/%E0%40%2E%E0%40%2E/secret"), "http://example.com/public/%E0%40%2E%E0%40%2E/secret", "normalize");
+	strictEqual(URI.equal("http://example.com/public/%E0%40%2E%E0%40%2E/secret", "http://example.com/secret"), false, "equal");
+	strictEqual(URI.resolve("http://a/b/c/", "%E0%40%2E%E0%40%2E/x"), "http://a/b/c/%E0%40%2E%E0%40%2E/x", "resolve");
+	strictEqual(URI.normalize("http://a/b/%C0%AE%C0%AE/c"), "http://a/b/%C0%AE%C0%AE/c", "normalize overlong");
+	//legitimately encoded dots still normalize as before
+	strictEqual(URI.normalize("http://a/b/%2E%2E/c"), "http://a/c", "normalize %2E%2E");
+});
+
+test("Remove Dot Segments (line terminators)", function () {
+	//"." does not match \r, \u2028 or \u2029; these used to loop forever
+	strictEqual(URI.removeDotSegments("/a/b\u2028c/../d"), "/a/d", "U+2028");
+	strictEqual(URI.removeDotSegments("/a/b\u2029c/../d"), "/a/d", "U+2029");
+	strictEqual(URI.removeDotSegments("/a/b\rc/../d"), "/a/d", "CR");
+	strictEqual(URI.removeDotSegments("/a/b\nc/../d"), "/a/d", "LF");
+	strictEqual(URI.removeDotSegments("\u2028"), "\u2028", "bare U+2028");
+	strictEqual(URI.normalize("http://a/b\u2028c/../d", { iri : true, unicodeSupport : true }), "http://a/d", "normalize IRI");
+	strictEqual(URI.resolve("http://a/b/", "x\u2028y/../z", { iri : true, unicodeSupport : true }), "http://a/b/z", "resolve IRI");
 });
 
 //
@@ -743,6 +781,29 @@ if (URI.SCHEMES["mailto"]) {
 			strictEqual(components.body, "NATTO", "body");
 		}
 
+	});
+
+	test("Mailto Parse (malformed)", function () {
+		var components;
+
+		//bare "to" header without a value
+		components = URI.parse("mailto:?to");
+		deepEqual(components.to, [], "bare to");
+		components = URI.parse("mailto:a@example.com?to&subject=hi");
+		deepEqual(components.to, ["a@example.com"], "bare to with address");
+		strictEqual(components.subject, "hi", "subject after bare to");
+
+		//address without a domain
+		components = URI.parse("mailto:foo", { unicodeSupport : true });
+		deepEqual(components.to, ["foo"], "no domain (unicodeSupport)");
+		components = URI.parse("mailto:?to=foo", { unicodeSupport : true });
+		deepEqual(components.to, ["foo"], "no domain in to header (unicodeSupport)");
+
+		//serializing an address without a domain must not rewrite it (used to give "fo@foo")
+		strictEqual(URI.normalize("mailto:foo"), "mailto:foo", "normalize no domain");
+		strictEqual(URI.normalize("mailto:foo", { unicodeSupport : true }), "mailto:foo", "normalize no domain (unicodeSupport)");
+		strictEqual(URI.serialize({ scheme : "mailto", to : ["foo", "a@example.com"] }), "mailto:foo,a@example.com", "serialize no domain");
+		strictEqual(URI.normalize("mailto:?to"), "mailto:", "normalize bare to");
 	});
 
 	test("Mailto Serialize", function () {

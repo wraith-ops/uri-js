@@ -88,7 +88,7 @@ const handler:URISchemeHandler<MailtoComponents> =  {
 
 				switch (hfield[0]) {
 					case "to":
-						const toAddrs = hfield[1].split(",");
+						const toAddrs = (hfield[1] !== undefined ? hfield[1].split(",") : []);
 						for (let x = 0, xl = toAddrs.length; x < xl; ++x) {
 							to.push(toAddrs[x]);
 						}
@@ -123,7 +123,7 @@ const handler:URISchemeHandler<MailtoComponents> =  {
 				} catch (e) {
 					mailtoComponents.error = mailtoComponents.error || "Email address's domain name can not be converted to ASCII via punycode: " + e;
 				}
-			} else {
+			} else if (addr[1] !== undefined) {
 				addr[1] = unescapeComponent(addr[1], options).toLowerCase();
 			}
 
@@ -140,7 +140,14 @@ const handler:URISchemeHandler<MailtoComponents> =  {
 			for (let x = 0, xl = to.length; x < xl; ++x) {
 				const toAddr = String(to[x]);
 				const atIdx = toAddr.lastIndexOf("@");
-				const localPart = (toAddr.slice(0, atIdx)).replace(PCT_ENCODED, decodeUnreserved).replace(PCT_ENCODED, toUpperCase).replace(NOT_LOCAL_PART, pctEncChar);
+				//an address without "@" is all local part; don't invent a domain from it
+				const localPart = (atIdx !== -1 ? toAddr.slice(0, atIdx) : toAddr).replace(PCT_ENCODED, decodeUnreserved).replace(PCT_ENCODED, toUpperCase).replace(NOT_LOCAL_PART, pctEncChar);
+
+				if (atIdx === -1) {
+					to[x] = localPart;
+					continue;
+				}
+
 				let domain = toAddr.slice(atIdx + 1);
 
 				//convert IDN via punycode
