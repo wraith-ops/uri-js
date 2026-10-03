@@ -1,4 +1,4 @@
-/** @license URI.js v4.4.1 (c) 2011 Gary Court. License: http://github.com/garycourt/uri-js */
+/** @license URI.js v4.4.2 (c) 2011 Gary Court. License: http://github.com/garycourt/uri-js */
 (function (global, factory) {
 	typeof exports === 'object' && typeof module !== 'undefined' ? factory(exports) :
 	typeof define === 'function' && define.amd ? define(['exports'], factory) :
@@ -708,7 +708,7 @@ var punycode = {
 /**
  * URI.js
  *
- * @fileoverview An RFC 3986 compliant, scheme extendable URI parsing/validating/resolving library for JavaScript.
+ * @fileoverview An RFC 3986 compliant, scheme extendable URI parsing/normalizing/resolving/serializing library for JavaScript.
  * @author <a href="mailto:gary.court@gmail.com">Gary Court</a>
  * @see http://github.com/garycourt/uri-js
  */
@@ -746,6 +746,15 @@ function pctEncChar(chr) {
     if (c < 16) e = "%0" + c.toString(16).toUpperCase();else if (c < 128) e = "%" + c.toString(16).toUpperCase();else if (c < 2048) e = "%" + (c >> 6 | 192).toString(16).toUpperCase() + "%" + (c & 63 | 128).toString(16).toUpperCase();else e = "%" + (c >> 12 | 224).toString(16).toUpperCase() + "%" + (c >> 6 & 63 | 128).toString(16).toUpperCase() + "%" + (c & 63 | 128).toString(16).toUpperCase();
     return e;
 }
+function isUTF8Continuation(c) {
+    return (c & 192) === 128;
+}
+//E0 must be followed by A0-BF, otherwise the sequence is overlong.
+//Encoded UTF-16 surrogates (ED A0-BF) are accepted: pctEncChar produces them for astral characters.
+function isValidUTF8Sequence3(c, c2, c3) {
+    return c >= 224 && c < 240 && isUTF8Continuation(c2) && isUTF8Continuation(c3) && (c !== 224 || c2 >= 160);
+}
+//Malformed, overlong and truncated sequences are left percent-encoded, as-is.
 function pctDecChars(str) {
     var newStr = "";
     var i = 0;
@@ -756,17 +765,17 @@ function pctDecChars(str) {
             newStr += String.fromCharCode(c);
             i += 3;
         } else if (c >= 194 && c < 224) {
-            if (il - i >= 6) {
-                var c2 = parseInt(str.substr(i + 4, 2), 16);
+            var c2 = parseInt(str.substr(i + 4, 2), 16);
+            if (il - i >= 6 && isUTF8Continuation(c2)) {
                 newStr += String.fromCharCode((c & 31) << 6 | c2 & 63);
             } else {
                 newStr += str.substr(i, 6);
             }
             i += 6;
         } else if (c >= 224) {
-            if (il - i >= 9) {
-                var _c = parseInt(str.substr(i + 4, 2), 16);
-                var c3 = parseInt(str.substr(i + 7, 2), 16);
+            var _c = parseInt(str.substr(i + 4, 2), 16);
+            var c3 = parseInt(str.substr(i + 7, 2), 16);
+            if (il - i >= 9 && isValidUTF8Sequence3(c, _c, c3)) {
                 newStr += String.fromCharCode((c & 15) << 12 | (_c & 63) << 6 | c3 & 63);
             } else {
                 newStr += str.substr(i, 9);
@@ -971,7 +980,7 @@ function _recomposeAuthority(components, options) {
 var RDS1 = /^\.\.?\//;
 var RDS2 = /^\/\.(\/|$)/;
 var RDS3 = /^\/\.\.(\/|$)/;
-var RDS5 = /^\/?(?:.|\n)*?(?=\/|$)/;
+var RDS5 = /^\/?[\s\S]*?(?=\/|$)/; //[\s\S] also matches \r, \u2028 and \u2029, which "." does not
 function removeDotSegments(input) {
     var output = [];
     while (input.length) {
@@ -986,7 +995,7 @@ function removeDotSegments(input) {
             input = "";
         } else {
             var im = input.match(RDS5);
-            if (im) {
+            if (im && im[0].length) {
                 var s = im[0];
                 input = input.slice(s.length);
                 output.push(s);
@@ -1284,7 +1293,7 @@ var handler$4 = {
                 var hfield = hfields[x].split("=");
                 switch (hfield[0]) {
                     case "to":
-                        var toAddrs = hfield[1].split(",");
+                        var toAddrs = hfield[1] !== undefined ? hfield[1].split(",") : [];
                         for (var _x = 0, _xl = toAddrs.length; _x < _xl; ++_x) {
                             to.push(toAddrs[_x]);
                         }
@@ -1314,7 +1323,7 @@ var handler$4 = {
                 } catch (e) {
                     mailtoComponents.error = mailtoComponents.error || "Email address's domain name can not be converted to ASCII via punycode: " + e;
                 }
-            } else {
+            } else if (addr[1] !== undefined) {
                 addr[1] = unescapeComponent(addr[1], options).toLowerCase();
             }
             to[_x2] = addr.join("@");
@@ -1328,7 +1337,12 @@ var handler$4 = {
             for (var x = 0, xl = to.length; x < xl; ++x) {
                 var toAddr = String(to[x]);
                 var atIdx = toAddr.lastIndexOf("@");
-                var localPart = toAddr.slice(0, atIdx).replace(PCT_ENCODED, decodeUnreserved).replace(PCT_ENCODED, toUpperCase).replace(NOT_LOCAL_PART, pctEncChar);
+                //an address without "@" is all local part; don't invent a domain from it
+                var localPart = (atIdx !== -1 ? toAddr.slice(0, atIdx) : toAddr).replace(PCT_ENCODED, decodeUnreserved).replace(PCT_ENCODED, toUpperCase).replace(NOT_LOCAL_PART, pctEncChar);
+                if (atIdx === -1) {
+                    to[x] = localPart;
+                    continue;
+                }
                 var domain = toAddr.slice(atIdx + 1);
                 //convert IDN via punycode
                 try {

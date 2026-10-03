@@ -1,7 +1,7 @@
 /**
  * URI.js
  *
- * @fileoverview An RFC 3986 compliant, scheme extendable URI parsing/validating/resolving library for JavaScript.
+ * @fileoverview An RFC 3986 compliant, scheme extendable URI parsing/normalizing/resolving/serializing library for JavaScript.
  * @author <a href="mailto:gary.court@gmail.com">Gary Court</a>
  * @see http://github.com/garycourt/uri-js
  */
@@ -50,6 +50,17 @@ export function pctEncChar(chr) {
         e = "%" + ((c >> 12) | 224).toString(16).toUpperCase() + "%" + (((c >> 6) & 63) | 128).toString(16).toUpperCase() + "%" + ((c & 63) | 128).toString(16).toUpperCase();
     return e;
 }
+function isUTF8Continuation(c) {
+    return (c & 192) === 128;
+}
+//E0 must be followed by A0-BF, otherwise the sequence is overlong.
+//Encoded UTF-16 surrogates (ED A0-BF) are accepted: pctEncChar produces them for astral characters.
+function isValidUTF8Sequence3(c, c2, c3) {
+    return c >= 224 && c < 240 &&
+        isUTF8Continuation(c2) && isUTF8Continuation(c3) &&
+        (c !== 224 || c2 >= 160);
+}
+//Malformed, overlong and truncated sequences are left percent-encoded, as-is.
 export function pctDecChars(str) {
     let newStr = "";
     let i = 0;
@@ -61,8 +72,8 @@ export function pctDecChars(str) {
             i += 3;
         }
         else if (c >= 194 && c < 224) {
-            if ((il - i) >= 6) {
-                const c2 = parseInt(str.substr(i + 4, 2), 16);
+            const c2 = parseInt(str.substr(i + 4, 2), 16);
+            if ((il - i) >= 6 && isUTF8Continuation(c2)) {
                 newStr += String.fromCharCode(((c & 31) << 6) | (c2 & 63));
             }
             else {
@@ -71,9 +82,9 @@ export function pctDecChars(str) {
             i += 6;
         }
         else if (c >= 224) {
-            if ((il - i) >= 9) {
-                const c2 = parseInt(str.substr(i + 4, 2), 16);
-                const c3 = parseInt(str.substr(i + 7, 2), 16);
+            const c2 = parseInt(str.substr(i + 4, 2), 16);
+            const c3 = parseInt(str.substr(i + 7, 2), 16);
+            if ((il - i) >= 9 && isValidUTF8Sequence3(c, c2, c3)) {
                 newStr += String.fromCharCode(((c & 15) << 12) | ((c2 & 63) << 6) | (c3 & 63));
             }
             else {
@@ -281,7 +292,7 @@ const RDS1 = /^\.\.?\//;
 const RDS2 = /^\/\.(\/|$)/;
 const RDS3 = /^\/\.\.(\/|$)/;
 const RDS4 = /^\.\.?$/;
-const RDS5 = /^\/?(?:.|\n)*?(?=\/|$)/;
+const RDS5 = /^\/?[\s\S]*?(?=\/|$)/; //[\s\S] also matches \r, \u2028 and \u2029, which "." does not
 export function removeDotSegments(input) {
     const output = [];
     while (input.length) {
@@ -300,7 +311,7 @@ export function removeDotSegments(input) {
         }
         else {
             const im = input.match(RDS5);
-            if (im) {
+            if (im && im[0].length) {
                 const s = im[0];
                 input = input.slice(s.length);
                 output.push(s);
